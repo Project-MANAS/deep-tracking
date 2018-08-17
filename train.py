@@ -1,14 +1,19 @@
 from model import DeepTracker
+from utils import GenerateAffineFromOdom
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
+import numpy as np
 
-dt = DeepTracker((3, 1, 16, 256, 256))
-#(3, batch, 16, img_x, img_y)
+batch_size = 3
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+dt = DeepTracker((3, batch_size, 16, 256, 256), True).to(device)
 dt.hidden = dt.init_hidden()
-for i in range(10):
-    x = torch.randn((1, 2, 256, 256))
-    y = dt(x)
+odom_to_aff = GenerateAffineFromOdom(256, 0.1)
+
+for i in range(100):
+    x = torch.randn((batch_size, 2, 256, 256)).to(device)
+    odom = np.array([[1, 1, np.pi/2]]*batch_size)
+    aff = odom_to_aff(odom).to(device)
+    y = dt(x, aff)
     print(y.size())
 

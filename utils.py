@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 
 class GenerateAffineFromOdom:
@@ -34,4 +35,4 @@ class GenerateAffineFromOdom:
         y = odom[:, 1] / self.resolution
 
         aff_t = np.array([[cos_vals, sin_vals, x], [-sin_vals, cos_vals, y]])
-        return np.transpose(aff_t, [2, 0, 1])
+        return torch.from_numpy(np.transpose(aff_t, [2, 0, 1])).type(torch.FloatTensor)

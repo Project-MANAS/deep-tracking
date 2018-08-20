@@ -30,16 +30,17 @@ class DeepTrackerLSTM(nn.Module):
         if self.spatial_transform:
             self.spatial_transformer_module = SpatialTransformerModule()
 
-        self.conv1 = torch.nn.Conv2d(18, 64, 3, 1, 1, 1)
-        self.conv2 = torch.nn.Conv2d(32, 64, 3, 1, 2, 2)
-        self.conv3 = torch.nn.Conv2d(32, 64, 3, 1, 4, 4)
-        self.conv4 = torch.nn.Conv2d(48, 1, 3, 1, 1, 1)
+        self.nhl = hidden_dims[2]
+        self.conv1 = torch.nn.Conv2d(2 + self.nhl, 4 * self.nhl, 3, 1, 1, 1)
+        self.conv2 = torch.nn.Conv2d(2 * self.nhl, 4 * self.nhl, 3, 1, 2, 2)
+        self.conv3 = torch.nn.Conv2d(2 * self.nhl, 4 * self.nhl, 3, 1, 4, 4)
+        self.conv4 = torch.nn.Conv2d(3 * self.nhl, 1, 3, 1, 1, 1)
 
         self.sigmoid = torch.nn.Sigmoid()
         self.tanh = torch.nn.Tanh()
 
-        # TODO (squadrick): Allow these to be params as well
-        assert hidden_dims[0] == 3 and hidden_dims[2] == 16
+        # TODO (squadrick): Allow theis to be a param as well
+        assert hidden_dims[0] == 3
 
     def init_hidden(self):
         return (torch.zeros(*self.hidden_dims).cuda(),
@@ -48,7 +49,7 @@ class DeepTrackerLSTM(nn.Module):
     def _cell(self, inp, h, c, conv):
         activations = conv(torch.cat([inp, c if self.peephole else h], 1))
 
-        gates = torch.stack(torch.split(activations, 16, 1))
+        gates = torch.stack(torch.split(activations, self.nhl, 1))
         forget = self.sigmoid(gates[0])
         input = self.sigmoid(gates[1])
         output = self.sigmoid(gates[2])
@@ -108,16 +109,17 @@ class DeepTrackerGRU(nn.Module):
         if self.spatial_transform:
             self.spatial_transformer_module = SpatialTransformerModule()
 
-        self.conv1 = torch.nn.Conv2d(18, 48, 3, 1, 1, 1)
-        self.conv2 = torch.nn.Conv2d(32, 48, 3, 1, 2, 2)
-        self.conv3 = torch.nn.Conv2d(32, 48, 3, 1, 4, 4)
-        self.conv4 = torch.nn.Conv2d(48, 1, 3, 1, 1, 1)
+        self.nhl = hidden_dims[2]
+        self.conv1 = torch.nn.Conv2d(2 + self.nhl, 3 * self.nhl, 3, 1, 1, 1)
+        self.conv2 = torch.nn.Conv2d(2 * self.nhl, 3 * self.nhl, 3, 1, 2, 2)
+        self.conv3 = torch.nn.Conv2d(2 * self.nhl, 3 * self.nhl, 3, 1, 4, 4)
+        self.conv4 = torch.nn.Conv2d(3 * self.nhl, 1, 3, 1, 1, 1)
 
         self.sigmoid = torch.nn.Sigmoid()
         self.tanh = torch.nn.Tanh()
 
-        # TODO (squadrick): Allow these to be params as well
-        assert hidden_dims[0] == 3 and hidden_dims[2] == 16
+        # TODO (squadrick): Allow theis to be a param as well
+        assert hidden_dims[0] == 3
 
     def init_hidden(self):
         return torch.zeros(*self.hidden_dims).cuda()
@@ -125,7 +127,7 @@ class DeepTrackerGRU(nn.Module):
     def _cell(self, inp, h, conv):
         activations = conv(torch.cat([inp, h], 1))
 
-        gates = torch.stack(torch.split(activations, 16, 1))
+        gates = torch.stack(torch.split(activations, self.nhl, 1))
         update = self.sigmoid(gates[0])
         reset = self.sigmoid(gates[1])
         h_new = torch.mul(update, h) + self.tanh(torch.mul(reset, h))

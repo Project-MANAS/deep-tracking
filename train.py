@@ -16,6 +16,7 @@ Hyperparams:
     batch_size = 2
     image_size = (256, 256)
     spatial_transform = True
+    no of hidden state channels = 16
 
 GRU:
     Max sequence length: 30

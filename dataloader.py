@@ -1,6 +1,6 @@
-from torch.utils.serialization import load_lua
-import torch
 import numpy as np
+import torch
+from torch.utils.serialization import load_lua
 
 
 class DataLoader(object):
@@ -43,7 +43,7 @@ class DataLoader(object):
                 py = y * self.grid_step + self.min_y
                 angle = np.degrees(np.arctan2(px, py))
                 self.dist[y][x] = np.sqrt(px * px + py * py)
-                self.index[y][x] = np.floor((angle - self.sensor_start)/ self.sensor_step + 1.5) - 1
+                self.index[y][x] = np.floor((angle - self.sensor_start) / self.sensor_step + 1.5) - 1
         self.index = self.index.reshape(self.width * self.height)
 
     def test(self):

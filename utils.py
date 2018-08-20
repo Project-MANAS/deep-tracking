@@ -1,5 +1,24 @@
 import numpy as np
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+def get_convolution_filters(num_layers, num_channels, num_gates):
+    """
+    :param num_layers: number of layers in the RNN cell
+    :param num_channels: number of channels in the hidden state
+    :param num_gates: number of gates required to compute new states (4 for LSTM, 3 for GRU)
+    :return: a list containing the convolutions modules as per specification
+    """
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    filters = [nn.Conv2d(2 * num_channels, num_gates * num_channels, 3, 1, 2 ** i, 2 ** i).to(device)
+               for i in range(1, num_layers)]
+    filters.append(
+        nn.Conv2d(num_layers * num_channels, 1, 3, 1, 2 ** (num_layers - 1), 2 ** (num_layers - 1)).to(device))
+    filters.insert(0, nn.Conv2d(2 + num_channels, num_gates * num_channels, 3, 1, 1, 1).to(device))
+
+    return filters
 
 
 class GenerateAffineFromOdom:
@@ -36,3 +55,12 @@ class GenerateAffineFromOdom:
 
         aff_t = np.array([[cos_vals, sin_vals, x], [-sin_vals, cos_vals, y]])
         return torch.from_numpy(np.transpose(aff_t, [2, 0, 1])).type(torch.FloatTensor)
+
+
+class SpatialTransformerModule(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, img, affine_matrix):
+        affine_grid = F.affine_grid(affine_matrix, img.size())
+        return F.grid_sample(img, affine_grid)

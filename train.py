@@ -1,8 +1,9 @@
-import numpy as np
-import torch
 import time
 
-from model import DeepTrackerGRU, DeepTrackerLSTM
+import numpy as np
+import torch
+
+from model import DeepTrackerLSTM
 from utils import GenerateAffineFromOdom
 
 """
@@ -35,8 +36,7 @@ LSTM (with peephole):
 
 batch_size = 2
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-dt = DeepTrackerLSTM((3, batch_size, 8, 256, 256), True, True).to(device)
+dt = DeepTrackerLSTM((3, batch_size, 16, 256, 256), True, False).to(device)
 dt.hidden = dt.init_hidden()
 odom_to_aff = GenerateAffineFromOdom(256, 0.1)
 

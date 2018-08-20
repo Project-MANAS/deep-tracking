@@ -1,50 +1,53 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+
+from utils import SpatialTransformerModule, get_convolution_filters
 
 
-class SpatialTransformerModule(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    def forward(self, img, affine_matrix):
-        affine_grid = F.affine_grid(affine_matrix, img.size())
-        return F.grid_sample(img, affine_grid)
-
-
-class DeepTrackerLSTM(nn.Module):
-    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, peephole: bool = False):
+class DeepTracker(nn.Module):
+    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False):
         """
-        :param hidden_dims: expected to be (3, batch_size, 16, x_img, y_img)
+        :param hidden_dims: expected to be (layers, batch_size, hidden_channels, x_img, y_img)
         :param spatial_transform: Bool, set to True to use an STM based on Odom
-        :param peephole: Bool, set to True to use a peephole connection in the recurrent connection
         """
-
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         self.hidden_dims = hidden_dims
         self.hidden = self.init_hidden()
         self.spatial_transform = spatial_transform
-        self.peephole = peephole
 
         super().__init__()
 
         if self.spatial_transform:
+            assert torch.cuda.is_available()
             self.spatial_transformer_module = SpatialTransformerModule()
 
         self.nhl = hidden_dims[2]
-        self.conv1 = torch.nn.Conv2d(2 + self.nhl, 4 * self.nhl, 3, 1, 1, 1)
-        self.conv2 = torch.nn.Conv2d(2 * self.nhl, 4 * self.nhl, 3, 1, 2, 2)
-        self.conv3 = torch.nn.Conv2d(2 * self.nhl, 4 * self.nhl, 3, 1, 4, 4)
-        self.conv4 = torch.nn.Conv2d(3 * self.nhl, 1, 3, 1, 1, 1)
+        self.convs = get_convolution_filters(hidden_dims[0], self.nhl, 4)
 
         self.sigmoid = torch.nn.Sigmoid()
         self.tanh = torch.nn.Tanh()
 
-        # TODO (squadrick): Allow theis to be a param as well
-        assert hidden_dims[0] == 3
+    def init_hidden(self):
+        raise NotImplementedError
+
+    def _cell(self, *args):
+        raise NotImplementedError
+
+    def forward(self, inp, *args):
+        # TODO (Squadrick): Test whether the shifting of visibility layer is successful
+        raise NotImplementedError
+
+
+class DeepTrackerLSTM(DeepTracker):
+    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, peephole: bool = False):
+        """
+        :param peephole: Bool, set to True to use a peephole connection in the recurrent connection
+        """
+        super().__init__(hidden_dims, spatial_transform)
+        self.peephole = peephole
 
     def init_hidden(self):
-        return (torch.zeros(*self.hidden_dims).cuda(),
-                torch.zeros(*self.hidden_dims).cuda())
+        return torch.zeros(*self.hidden_dims).to(self.device), torch.zeros(*self.hidden_dims).to(self.device)
 
     def _cell(self, inp, h, c, conv):
         activations = conv(torch.cat([inp, c if self.peephole else h], 1))
@@ -78,51 +81,30 @@ class DeepTrackerLSTM(nn.Module):
                will be slower, but it is not. It's faster than direct index and assign or using a loop. 
                Idk why. '''
 
-            # TODO (Squadrick): Test whether the shifting of visibility layer is successful
             inp[:, 1] = self.spatial_transformer_module(inp[:, 1].unsqueeze(1), affine_matrix).squeeze(1)
 
-        h1, c1 = self._cell(inp, h[0], c[0], self.conv1)
-        h2, c2 = self._cell(h1, h[1], c[1], self.conv2)
-        h3, c3 = self._cell(h2, h[2], c[2], self.conv3)
+        hs, cs = [], []
+        for i in range(self.hidden_dims[0]):
+            h_i, c_i = self._cell(inp, h[i], c[i], self.convs[i])
+            hs.append(h_i)
+            cs.append(c_i)
+            inp = h_i
 
-        h_pred = torch.cat([h1, h2, h3], 1)
-        h_new = torch.stack([h1, h2, h3], 0)
-        c_new = torch.stack([c1, c2, c3], 0)
+        h_pred = torch.cat(hs, 1)
+        h_new = torch.stack(hs, 0)
+        c_new = torch.stack(cs, 0)
 
         self.hidden = (h_new, c_new)
 
-        return self.sigmoid(self.conv4(h_pred))
+        return self.sigmoid(self.convs[self.hidden_dims[0]](h_pred))
 
 
-class DeepTrackerGRU(nn.Module):
+class DeepTrackerGRU(DeepTracker):
     def __init__(self, hidden_dims: tuple, spatial_transform: bool = False):
-        """
-        :param hidden_dims: expected to be (3, batch_size, 16, x_img, y_img)
-        :param spatial_transform: Bool, set to True to use an STM based on Odom
-        """
-        self.hidden_dims = hidden_dims
-        self.hidden = self.init_hidden()
-        self.spatial_transform = spatial_transform
-
-        super().__init__()
-
-        if self.spatial_transform:
-            self.spatial_transformer_module = SpatialTransformerModule()
-
-        self.nhl = hidden_dims[2]
-        self.conv1 = torch.nn.Conv2d(2 + self.nhl, 3 * self.nhl, 3, 1, 1, 1)
-        self.conv2 = torch.nn.Conv2d(2 * self.nhl, 3 * self.nhl, 3, 1, 2, 2)
-        self.conv3 = torch.nn.Conv2d(2 * self.nhl, 3 * self.nhl, 3, 1, 4, 4)
-        self.conv4 = torch.nn.Conv2d(3 * self.nhl, 1, 3, 1, 1, 1)
-
-        self.sigmoid = torch.nn.Sigmoid()
-        self.tanh = torch.nn.Tanh()
-
-        # TODO (squadrick): Allow theis to be a param as well
-        assert hidden_dims[0] == 3
+        super().__init__(hidden_dims, spatial_transform)
 
     def init_hidden(self):
-        return torch.zeros(*self.hidden_dims).cuda()
+        return torch.zeros(*self.hidden_dims).to(self.device)
 
     def _cell(self, inp, h, conv):
         activations = conv(torch.cat([inp, h], 1))
@@ -145,18 +127,15 @@ class DeepTrackerGRU(nn.Module):
 
         if self.spatial_transform:
             affine_matrix = args[0]
-
             h = torch.stack([self.spatial_transformer_module(i, affine_matrix) for i in h])
-            # TODO (squadrick): Test whether the shifting of visibility layer is successful
             inp[:, 1] = self.spatial_transformer_module(inp[:, 1].unsqueeze(1), affine_matrix).squeeze(1)
 
-        h1 = self._cell(inp, h[0], self.conv1)
-        h2 = self._cell(h1, h[1], self.conv2)
-        h3 = self._cell(h2, h[2], self.conv3)
+        hs = []
+        for i in range(self.hidden_dims[0]):
+            h_i = self._cell(inp, h[i], self.convs[i])
+            hs.append(h_i)
+            inp = h_i
 
-        h_pred = torch.cat([h1, h2, h3], 1)
-        h_new = torch.stack([h1, h2, h3], 0)
+        self.hidden = torch.stack(hs, 0)
 
-        self.hidden = h_new
-
-        return self.sigmoid(self.conv4(h_pred))
+        return self.sigmoid(self.convs[self.hidden_dims[0]](torch.cat(hs, 1)))

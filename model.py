@@ -5,7 +5,7 @@ from utils import SpatialTransformerModule, get_convolution_filters
 
 
 class DeepTracker(nn.Module):
-    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False):
+    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, *args, **kwargs):
         """
         :param hidden_dims: expected to be (layers, batch_size, hidden_channels, x_img, y_img)
         :param spatial_transform: Bool, set to True to use an STM based on Odom
@@ -22,8 +22,7 @@ class DeepTracker(nn.Module):
             self.spatial_transformer_module = SpatialTransformerModule()
 
         self.nhl = hidden_dims[2]
-        self.convs = get_convolution_filters(hidden_dims[0], self.nhl, 4)
-
+        self.convs = get_convolution_filters(hidden_dims[0], self.nhl, self.num_gates)
         self.sigmoid = torch.nn.Sigmoid()
         self.tanh = torch.nn.Tanh()
 
@@ -39,11 +38,12 @@ class DeepTracker(nn.Module):
 
 
 class DeepTrackerLSTM(DeepTracker):
-    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, peephole: bool = False):
+    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, peephole: bool = False, *args, **kwargs):
         """
         :param peephole: Bool, set to True to use a peephole connection in the recurrent connection
         """
-        super().__init__(hidden_dims, spatial_transform)
+        self.num_gates = 4
+        super().__init__(hidden_dims, spatial_transform, args, kwargs)
         self.peephole = peephole
 
     def init_hidden(self):
@@ -90,31 +90,24 @@ class DeepTrackerLSTM(DeepTracker):
             cs.append(c_i)
             inp = h_i
 
-        h_pred = torch.cat(hs, 1)
-        h_new = torch.stack(hs, 0)
-        c_new = torch.stack(cs, 0)
+        self.hidden = (torch.stack(hs, 0), torch.stack(cs, 0))
 
-        self.hidden = (h_new, c_new)
-
-        return self.sigmoid(self.convs[self.hidden_dims[0]](h_pred))
+        return self.sigmoid(self.convs[self.hidden_dims[0]](torch.cat(hs, 1)))
 
 
 class DeepTrackerGRU(DeepTracker):
-    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False):
-        super().__init__(hidden_dims, spatial_transform)
+    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, *args, **kwargs):
+        self.num_gates = 2
+        super().__init__(hidden_dims, spatial_transform, args, kwargs)
 
     def init_hidden(self):
         return torch.zeros(*self.hidden_dims).to(self.device)
 
     def _cell(self, inp, h, conv):
-        activations = conv(torch.cat([inp, h], 1))
+        activations = self.sigmoid(conv(torch.cat([inp, h], 1)))
 
-        gates = torch.stack(torch.split(activations, self.nhl, 1))
-        update = self.sigmoid(gates[0])
-        reset = self.sigmoid(gates[1])
-        h_new = torch.mul(update, h) + self.tanh(torch.mul(reset, h))
-
-        return h_new
+        update, reset = torch.split(activations, self.nhl, 1)
+        return torch.mul(update, h) + self.tanh(torch.mul(reset, h))
 
     def forward(self, inp, *args):
         """

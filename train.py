@@ -3,7 +3,7 @@ import time
 import numpy as np
 import torch
 
-from model import DeepTrackerLSTM
+from model import DeepTrackerLSTM, DeepTrackerGRU
 from utils import GenerateAffineFromOdom
 
 """
@@ -22,36 +22,51 @@ Hyperparams:
     no of hidden state channels = 16
 
 GRU:
-    Max sequence length: 30
-    Average forward time: 0.0064s
+    Max sequence length: 43
+    Average forward time: 0.0044s
     
 LSTM (no peephole):
     Max sequence length: 21
-    Average forward time: 0.0088s
+    Average forward time: 0.0078s
     
 LSTM (with peephole):
     Max sequence length: 19
-    Average forward time:  0.0094s  
+    Average forward time:  0.0084s  
 """
 
+epochs = 5
+seq_len = 200
+bptt_len = 20
+
 batch_size = 2
+img_dim = 256
+
+assert seq_len % bptt_len == 0
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-dt = DeepTrackerLSTM((3, batch_size, 16, 256, 256), True, False).to(device)
-dt.hidden = dt.init_hidden()
-odom_to_aff = GenerateAffineFromOdom(256, 0.1)
+dt = DeepTrackerGRU((3, batch_size, 16, img_dim, img_dim), True, True).to(device)
+odom_to_aff = GenerateAffineFromOdom(device, img_dim, 0.1)
+optimizer = torch.optim.Adam(dt.parameters())
 
-count = 0
-ttime = 0
-for i in range(100):
-    x = torch.randn((batch_size, 2, 256, 256)).to(device)
-    odom = np.array([[1, 1, np.pi / 2]] * batch_size)
-    aff = odom_to_aff(odom).to(device)
+dataset = torch.randn((1000, img_dim, img_dim)).to(device)
+dataset_odom = torch.randn((1000, 3)).to(device)
+dataset = dataset.view(-1, batch_size, 2, img_dim, img_dim)
+dataset_odom = dataset_odom.view(-1, batch_size, 3)
 
-    start = time.time()
-    y = dt(x, aff)
-    end = time.time()
+bce_loss = torch.nn.BCELoss()
+loss = 0
 
-    ttime += (end - start)
-    count += 1
+for i in range(epochs):
+    epoch_loss = 0
+    loss = 0
+    dt.hidden = dt.init_hidden()
 
-    print(ttime / count)
+    for j in range(20):
+        input = dataset[j]
+        odom = dataset_odom[j]
+        label = dataset[j + 1][:,0].unsqueeze(1)
+        output = dt(input, odom_to_aff(odom.data))
+
+        loss = bce_loss(output, label)
+        loss.backward(retain_graph=True)
+        optimizer.step()
+        print(loss)

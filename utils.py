@@ -18,20 +18,21 @@ def get_convolution_filters(num_layers, num_channels, num_gates):
         nn.Conv2d(num_layers * num_channels, 1, 3, 1, 2 ** (num_layers - 1), 2 ** (num_layers - 1)).to(device))
     filters.insert(0, nn.Conv2d(2 + num_channels, num_gates * num_channels, 3, 1, 1, 1).to(device))
 
-    return filters
+    return nn.ModuleList(filters)
 
 
 class GenerateAffineFromOdom:
-    def __init__(self, grid_size: int, resolution: float, batch_size: int = None):
+    def __init__(self, device, grid_size: int, resolution: float, batch_size: int = None):
         """
         :param grid_size: The grid is assumed to be a square, grid_size is size of either dim
         :param resolution: Calculated as real_world_distance (in m) / grid_size
-        :param batch_size: Minibatch size, set as None for runtime inference
+        :param batch_size: mini batch size, set as None for runtime inference
         """
 
         self.grid_size = grid_size
         self.resolution = resolution
         self.batch_size = batch_size
+        self.device = device
 
     def __call__(self, odom: np.ndarray):
         """
@@ -49,12 +50,15 @@ class GenerateAffineFromOdom:
         assert odom.shape[1] == 3
 
         cos_vals = np.cos(odom[:, 2])
-        sin_vals = np.cos(odom[:, 2])
+        sin_vals = np.sin(odom[:, 2])
         x = odom[:, 0] / self.resolution
         y = odom[:, 1] / self.resolution
 
-        aff_t = np.array([[cos_vals, sin_vals, x], [-sin_vals, cos_vals, y]])
-        return torch.from_numpy(np.transpose(aff_t, [2, 0, 1])).type(torch.FloatTensor)
+        # aff_t = np.array([[cos_vals, sin_vals, x], [-sin_vals, cos_vals, y]])
+        top_aff = np.stack([cos_vals, sin_vals, x])
+        bot_aff = np.stack([-sin_vals, cos_vals, y])
+        aff_t = np.stack([top_aff, bot_aff])
+        return torch.from_numpy(np.transpose(aff_t, [2, 0, 1])).type(torch.FloatTensor).to(self.device)
 
 
 class SpatialTransformerModule(nn.Module):

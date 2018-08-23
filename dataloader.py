@@ -11,6 +11,11 @@ class DataLoader(object):
         self.grid_step = grid_step
         self.sensor_start = sensor_start
         self.sensor_step = sensor_step
+        self.data = None
+        self.height = None
+        self.width = None
+        self.dist = None
+        self.index = None
 
         assert self.min_x < self.max_x
         assert self.min_y < self.max_y
@@ -20,7 +25,7 @@ class DataLoader(object):
         input_data = torch.empty((2, self.height, self.width), dtype=torch.float)
         input_data[0] = torch.lt(torch.abs(dist - self.dist), self.grid_step * 0.7071)
         input_data[1] = torch.gt(dist + self.grid_step * 0.7071, self.dist)
-        return input_data
+        return input_data.cuda()
 
     def get_training_size(self):
         return self.data.shape[0]
@@ -45,10 +50,3 @@ class DataLoader(object):
                 self.dist[y][x] = np.sqrt(px * px + py * py)
                 self.index[y][x] = np.floor((angle - self.sensor_start) / self.sensor_step + 1.5) - 1
         self.index = self.index.reshape(self.width * self.height)
-
-    def test(self):
-        print(self.sensor_start)
-
-
-obj = DataLoader()
-obj.load_sensor_data('/home/vdasu/Downloads/data.t7')

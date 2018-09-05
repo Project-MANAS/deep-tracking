@@ -104,6 +104,7 @@ class DeepTrackerGRU(DeepTracker):
         return torch.zeros(*self.hidden_dims).to(self.device)
 
     def _cell(self, inp, h, conv):
+        inp = inp.cuda()
         activations = self.sigmoid(conv(torch.cat([inp, h], 1)))
 
         update, reset = torch.split(activations, self.nhl, 1)

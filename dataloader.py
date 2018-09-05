@@ -49,8 +49,3 @@ class DeepTrackDataset(Dataset):
 
     def get_width(self):
         return self.width
-
-
-dd = DeepTrackDataset("./data.t7", 16)
-print(len(dd))
-print(dd[123].size())

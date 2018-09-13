@@ -13,26 +13,26 @@ bptt_len = 20
 
 batch_size = 2
 img_dim = 51
-print_interval = 1
+print_interval = 10
 
 #assert seq_len % bptt_len == 0
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 dt = DeepTrackerGRU((3, batch_size, 16, img_dim, img_dim), False).to(device)
 optimizer = torch.optim.Adam(dt.parameters())
 
-dataset = DeepTrackDataset('/home/vdasu/Downloads/data.t7', bptt_len)
+dataset = DeepTrackDataset('./data.t7', bptt_len)
 data = DataLoader(dataset, batch_size, shuffle=True, num_workers=4, pin_memory=False)
 
 bce_loss = torch.nn.BCELoss().to(device)
 
 
 for i in range(epochs):
-    epoch_loss = 0
-
+    torch.save(dt,'./saved_models/model_' + str(i+1) + '.pt')
     dt.hidden = dt.init_hidden()
-    seq_cnt = 0
+    seq_count = 0
+    epoch_loss = 0
     for batch_no, batch in enumerate(data):
-        seq_cnt += 1
+        seq_count += 1
         dt.zero_grad()
         dt.hidden = dt.hidden.detach()
         loss = 0
@@ -46,10 +46,11 @@ for i in range(epochs):
         loss.backward()
         optimizer.step()
 
-        if seq_cnt % seq_len == 0:
+        if seq_count % seq_len == 0:
             dt.hidden = dt.init_hidden()
 
         if batch_no % print_interval == 0:
-            print("Epoch: %d, Batch no: %d, Epoch Loss: %f, Batch Loss: %f" % (i, batch_no, epoch_loss, loss.data))
+            print("Epoch: %d, Batch no: %d, Batch Loss: %f" % (i, batch_no, loss.data))
 
-    torch.save(dt,'./model_' + str(i+1) + '.pt')
+    print("Epoch: %d, Epoch Loss: %f" % (i, epoch_loss))
+

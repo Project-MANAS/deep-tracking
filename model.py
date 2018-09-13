@@ -33,7 +33,6 @@ class DeepTracker(nn.Module):
         raise NotImplementedError
 
     def forward(self, inp, *args):
-        # TODO (Squadrick): Test whether the shifting of visibility layer is successful
         raise NotImplementedError
 
 

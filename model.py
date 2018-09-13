@@ -35,6 +35,9 @@ class DeepTracker(nn.Module):
     def forward(self, inp, *args):
         raise NotImplementedError
 
+    def detach_hidden_(self):
+        raise NotImplementedError
+
 
 class DeepTrackerLSTM(DeepTracker):
     def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, peephole: bool = False, *args, **kwargs):
@@ -70,7 +73,6 @@ class DeepTrackerLSTM(DeepTracker):
         :return: Output tensor of size (batch_size, 1, width, height)
         """
         h, c = self.hidden
-
         if self.spatial_transform:
             affine_matrix = args[0]
 
@@ -93,6 +95,9 @@ class DeepTrackerLSTM(DeepTracker):
 
         return self.sigmoid(self.convs[self.hidden_dims[0]](torch.cat(hs, 1)))
 
+    def detach_hidden_(self):
+        self.hidden = tuple(map(lambda ten: ten.detach(), self.hidden))
+
 
 class DeepTrackerGRU(DeepTracker):
     def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, *args, **kwargs):
@@ -103,7 +108,6 @@ class DeepTrackerGRU(DeepTracker):
         return torch.zeros(*self.hidden_dims).to(self.device)
 
     def _cell(self, inp, h, conv):
-        inp = inp.cuda()
         activations = self.sigmoid(conv(torch.cat([inp, h], 1)))
 
         update, reset = torch.split(activations, self.nhl, 1)
@@ -132,3 +136,6 @@ class DeepTrackerGRU(DeepTracker):
         self.hidden = torch.stack(hs, 0)
 
         return self.sigmoid(self.convs[self.hidden_dims[0]](torch.cat(hs, 1)))
+
+    def detach_hidden_(self):
+        self.hidden = self.hidden.detach()

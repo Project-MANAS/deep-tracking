@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 
 from dataloader import DeepTrackDataset
 from model import DeepTrackerLSTM
+from weightedBCECriterion import WeightedBCE
 
 epochs = 10
 seq_len = 100
@@ -20,7 +21,7 @@ optimizer = torch.optim.Adagrad(dt.parameters(), 0.01)
 dataset = DeepTrackDataset('./data.t7', seq_len)
 data = DataLoader(dataset, batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
-bce_loss = torch.nn.BCELoss().to(device)
+bce_loss = WeightedBCE().to(device)
 
 zero_tensor = torch.zeros((batch_size, 2, img_dim, img_dim)).to(device)
 
@@ -45,8 +46,7 @@ for i in range(epochs):
         target = batch.transpose(0, 1).to(device)
         for j in range(seq_len):
             output = dt(zero_tensor if j % 10 >= 5 else target[j])
-            target_occ = target[j, :, 0] * target[j, :, 1]  # ob * vis
-            loss += bce_loss(output, target_occ.unsqueeze(1))
+            loss += bce_loss(target[j], output)
 
         epoch_loss += loss.data
         dt.zero_grad()

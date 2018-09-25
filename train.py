@@ -7,7 +7,7 @@ from dataloader import DeepTrackDataset
 from model import DeepTrackerLSTM
 from weightedBCECriterion import WeightedBCE
 
-epochs = 10
+epochs = 25
 seq_len = 100
 
 batch_size = 1 # DO NOT CHANGE
@@ -36,12 +36,10 @@ def visualize(model, sequence, epoch_no):
     imageio.mimsave('./saved_gifs/gif_' + str(epoch_no + 1) + '.gif', outputs)
 
 for i in range(epochs):
-    dt.hidden = dt.init_hidden()
-    seq_count = 0
     epoch_loss = 0
     for batch_no, batch in enumerate(data):
-        seq_count += 1
-        dt.detach_hidden_()
+        dt.hidden = dt.init_hidden()
+        dt.zero_grad()
         loss = 0
         target = batch.transpose(0, 1).to(device)
         for j in range(seq_len):
@@ -49,7 +47,6 @@ for i in range(epochs):
             loss += bce_loss(target[j], output)
 
         epoch_loss += loss.data
-        dt.zero_grad()
         loss.backward()
         optimizer.step()
 

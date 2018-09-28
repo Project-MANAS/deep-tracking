@@ -58,7 +58,7 @@ class DeepTrackerLSTM(DeepTracker):
         forget = self.sigmoid(gates[0])
         input = self.sigmoid(gates[1])
         output = self.sigmoid(gates[2])
-        gate = gates[3] if self.peephole else self.tanh(gates[3])
+        gate = self.tanh(gates[3])
 
         c_new = torch.mul(forget, c) + torch.mul(input, gate)
         h_new = torch.mul(output, c_new)

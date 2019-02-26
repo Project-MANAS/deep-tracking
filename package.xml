@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+    <name>deeptracker</name>
+    <version>0.0.0</version>
+    <maintainer email="chaitanya2.1999@gmail.com">Chaitanya</maintainer>
+    <license>GPLv3</license>
+    <description>
+        A ros node that uses deeptracking to track objects behind occlusions
+    </description>
+    <buildtool_depend>catkin</buildtool_depend>
+    <build_depend>message_generation</build_depend>
+    <depend>rospy</depend>
+    <depend>sensor_msgs</depend>
+    <depend>std_msgs</depend>
+    <exec_depend>message_runtime</exec_depend>
+</package>
+

@@ -1,14 +1,12 @@
-#! /usr/bin/python3
+#! /usr/bin/python
 import rospy
 import torch
 import numpy as np
 import cv2
+import message_filters
 
-from cv_bridge import CvBridge, CvBridgeError
 from sensor_msgs.msg import CompressedImage
 from nav_msgs.msg import OccupancyGrid
-from sensor_msgs.msg import Image
-from model import DeepTrackerLSTM
 
 class DeepTracker:
     def __init__(self):
@@ -20,23 +18,31 @@ class DeepTracker:
         #self.dt = torch.jit.trace(self.dt, (zero_tensor))
         print(self.dt)
         self.pub = rospy.Publisher('tracker_frames', CompressedImage, queue_size=10)
-        self.sub = rospy.Subscriber('/move_base/global_costmap/obstacle_layer/obstacle_map', OccupancyGrid, self.callback)
-        self.bridge = CvBridge()
+        self.img_sub = message_filters.Subscriber('/move_base/local_costmap/obstacle_layer/obstacle_map', OccupancyGrid)
+        self.visibility_sub = message_filters.Subscriber('visibility_layer', CompressedImage)
+        ts = message_filters.ApproximateTimeSynchronizer([self.img_sub, self.visibility_sub], 10,10)
+        ts.registerCallback(self.callback)
         try:
             rospy.spin()
         except KeyboardInterrupt:
             print("Shutting down deep tracker node...")
 
-    def callback(self, data):
-        img = np.expand_dims(data.data, 1)
+    def callback(self, img_msg, visibility_layer_msg):
+        img = np.expand_dims(img_msg.data, 1)
         img = img.astype(np.float64)
-        img = np.reshape(img, (data.info.height, data.info.width))
+        img_dims = (img_msg.info.height, img_msg.info.width)
+        img = np.reshape(img, img_dims)
         img = cv2.resize(img, (500,500))
         img = cv2.GaussianBlur(img, (19,19), 0)
         cv2.imshow('input', img)
         img = cv2.resize(img, self.img_dim)
         img = np.reshape(img, (1, 1, self.img_dim[0], self.img_dim[0]))
-        img = np.concatenate([img, np.zeros((1, 1, self.img_dim[0], self.img_dim[0]))], axis=1)
+        visibility_layer = visibility_layer_msg.data
+        visibility_layer = cv2.imdecode(np.fromstring(visibility_layer, np.uint8), cv2.IMREAD_GRAYSCALE)
+        visibility_layer = np.resize(visibility_layer, self.img_dim)
+        cv2.imshow('visibility', visibility_layer)
+        visibility_layer = np.reshape(visibility_layer, [1, 1, self.img_dim[0], self.img_dim[1]])
+        img = np.concatenate([img, visibility_layer], axis=1)
         with torch.no_grad():
             t_img = torch.tensor(img, dtype=torch.float).to(self.device)
             op = self.dt(t_img)
@@ -44,9 +50,9 @@ class DeepTracker:
             cv2.imshow('image',op_img)
             cv2.waitKey(1)
             msg = CompressedImage()
-            msg.header = data.header
+            msg.header = img_msg.header
             msg.format = "jpeg"
-            jpg_data = cv2.imencode('.jpg', torch.squeeze(op).detach().cpu().numpy())
+            jpg_data = cv2.imencode('.jpg', torch.squeeze(op).detach().cpu().numpy())[0]
             msg.data = np.array(jpg_data).tostring()
             
             self.pub.publish(msg)

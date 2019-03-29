@@ -22,7 +22,7 @@ def get_convolution_filters(num_layers, num_channels, num_gates):
 
 
 class GenerateAffineFromOdom:
-    def __init__(self, device, grid_size: int, resolution: float, batch_size: int = None):
+    def __init__(self, device, grid_size, resolution, batch_size = None):
         """
         :param grid_size: The grid is assumed to be a square, grid_size is size of either dim
         :param resolution: Calculated as real_world_distance (in m) / grid_size
@@ -34,7 +34,7 @@ class GenerateAffineFromOdom:
         self.batch_size = batch_size
         self.device = device
 
-    def __call__(self, odom: np.ndarray):
+    def __call__(self, odom):
         """
         :param odom: shape is [batch_size, 3], where each element is [x, y, theta]
                      x and y are in metres

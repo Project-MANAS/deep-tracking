@@ -1,11 +1,12 @@
 import torch
 import torch.nn as nn
+import torch.jit as jit
 
 from utils import SpatialTransformerModule, get_convolution_filters
 
 
 class DeepTracker(nn.Module):
-    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, *args, **kwargs):
+    def __init__(self, hidden_dims, spatial_transform = False, *args, **kwargs):
         """
         :param hidden_dims: expected to be (layers, batch_size, hidden_channels, x_img, y_img)
         :param spatial_transform: Bool, set to True to use an STM based on Odom
@@ -40,7 +41,7 @@ class DeepTracker(nn.Module):
 
 
 class DeepTrackerLSTM(DeepTracker):
-    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, peephole: bool = False, *args, **kwargs):
+    def __init__(self, hidden_dims, spatial_transform = False, peephole = False, *args, **kwargs):
         """
         :param peephole: Bool, set to True to use a peephole connection in the recurrent connection
         """
@@ -100,7 +101,7 @@ class DeepTrackerLSTM(DeepTracker):
 
 
 class DeepTrackerGRU(DeepTracker):
-    def __init__(self, hidden_dims: tuple, spatial_transform: bool = False, *args, **kwargs):
+    def __init__(self, hidden_dims, spatial_transform = False, *args, **kwargs):
         self.num_gates = 2
         super().__init__(hidden_dims, spatial_transform, args, kwargs)
 

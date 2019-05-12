@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>deeptracker</name>
+    <name>deep-tracking</name>
     <version>0.0.0</version>
     <maintainer email="chaitanya2.1999@gmail.com">Chaitanya</maintainer>
     <license>GPLv3</license>

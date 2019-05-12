@@ -12,8 +12,8 @@ class DeepTracker:
     def __init__(self, costmap_topic, visibility_layer_topic, publisher_topic, model_path, img_dim=(51,51)):
         batch_size = 1
         self.img_dim = img_dim
-        self.device = torch.device("cuda:0" if torch.cuda.is_available() else cpu)
-        self.dt = torch.load(model_path) # or DeepTrackerLSTM((3, batch_size, 16, img_dim, img_dim), False, False).to(device)
+        self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        self.dt = torch.load(model_path, map_location='cpu') # or DeepTrackerLSTM((3, batch_size, 16, img_dim, img_dim), False, False).to(device)
         zero_tensor = torch.zeros((batch_size, 2, self.img_dim[0], self.img_dim[0])).to(self.device)
         print(self.dt)
 

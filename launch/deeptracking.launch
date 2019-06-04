@@ -1,5 +1,6 @@
 <?xml version="1.0"?>
 <launch>
+    <param name="map_topic" type="string" value="/move_base/local_costmap/costmap" />
     <node pkg="deep-tracking" type="deep_tracker.py" name="deep_tracker" cwd="node"/>
     <node pkg="ray_caster" type="ray_caster" name="ray_caster"/>
     <node pkg="map_to_jpeg" type="map_to_image_node" name="map_to_image_node"/>

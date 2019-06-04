@@ -5,8 +5,9 @@ import numpy as np
 import cv2
 import message_filters
 
-from sensor_msgs.msg import CompressedImage
+from sensor_msgs.msg import CompressedImage, Image
 from nav_msgs.msg import OccupancyGrid
+from cv_bridge import CvBridge, CvBridgeError
 
 class DeepTracker:
     def __init__(self, costmap_topic, visibility_layer_topic, publisher_topic, model_path, img_dim=(51,51)):
@@ -19,24 +20,32 @@ class DeepTracker:
 
         self.pub = rospy.Publisher(publisher_topic, CompressedImage, queue_size=10)
         
-        self.img_sub = message_filters.Subscriber(costmap_topic, OccupancyGrid)
+        self.img_sub = message_filters.Subscriber(costmap_topic, Image)
         self.visibility_sub = message_filters.Subscriber(visibility_layer_topic, CompressedImage)
         
         ts = message_filters.ApproximateTimeSynchronizer([self.img_sub, self.visibility_sub], 10,10)
         ts.registerCallback(self.callback)
         
+        self.bridge = CvBridge()
+
         try:
             rospy.spin()
         except KeyboardInterrupt:
             print("Shutting down deep tracker node...")
 
     def callback(self, img_msg, visibility_layer_msg):
-        img = np.expand_dims(img_msg.data, 1)
-        img = img.astype(np.float64)
-        img_dims = (img_msg.info.height, img_msg.info.width)
-        img = np.reshape(img, img_dims)
+        #img = np.expand_dims(img_msg.data, 1)
+        #img = img.astype(np.float64)
+        #img_dims = (img_msg.info.height, img_msg.info.width)
+        #img = np.reshape(img, img_dims)
+        try:
+            img = self.bridge.imgmsg_to_cv2(img_msg, "mono8")
+        except CvBridgeError as e:
+            rospy.logerr(e)
+            return
         img = cv2.resize(img, (500,500))
         img = cv2.GaussianBlur(img, (19,19), 0)
+        img = cv2.bitwise_not(img)
         cv2.imshow('input', img)
         img = cv2.resize(img, self.img_dim)
         img = np.reshape(img, (1, 1, self.img_dim[0], self.img_dim[0]))
@@ -66,7 +75,8 @@ class DeepTracker:
 if __name__ == "__main__":
     rospy.init_node('deep_tracker')
     publisher_topic = 'tracker_frames'
-    costmap_topic = '/move_base/local_costmap/obstacle_layer/obstacle_map'
+    #costmap_topic = '/move_base/local_costmap/obstacle_layer/obstacle_map'
+    costmap_topic = '/map_image/full'
     visibility_layer_topic = 'visibility_layer'
     model_path = 'saved_models/model_8.pt'
     DeepTracker(costmap_topic, visibility_layer_topic, publisher_topic, model_path)
